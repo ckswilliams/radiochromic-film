@@ -80,21 +80,23 @@ except ImportError:
     
     
 #source directory. Currently points to a test
-source = home + 'dat/cali/0203/'
+source = home + 'dat/cali/2003/140/'
 
 #output directory
-out = home + 'dat/cali/macro_out/0203/'
+out = home + 'dat/cali/macro_out/140/'
 
 #Calibration directiory
 #This shold point the location of previous calibrations, or where future
 #calibrations should be stored
 caldir = home + 'dat/cali/fit/'
 
+
+
 #x and y window for analysis
 #These are absolute values, and should be selected using imageJ or an
 #equivalent program
-[x1,x2] = [50,150]
-[y1,y2] = [50,150]
+[x1,x2] = [40,80]
+[y1,y2] = [60,100]
 
 #Provides the computer with the bitdepth of the image
 bitdepth = np.power(2,16)
@@ -275,7 +277,7 @@ def get_index(fn):
     with open(fn) as f:
         content = f.readlines()
         #Strip trailing nonsense
-    content = [x.strip().split(',') for x in content] 
+    content = [x.strip().split(',') for x in content]
     return content
 
 
@@ -300,7 +302,7 @@ def combine_samples(film_id_list,results):
     return total_mean, total_std
            
 #Iterate through the index and return the weighted mean and total uncertainty for each sample set
-def index_samples(results):
+def index_samples(results,source = source):
     try:
         index = get_index(source+'/index.txt')
     except FileNotFoundError:
@@ -313,7 +315,6 @@ def index_samples(results):
         name = i[0]
         file_id_list = i[1:]
         mean, std = combine_samples(file_id_list,results)
-        
         labels.append(name)
         data.append([name[:-3],mean/bitdepth,std/bitdepth])
     data = np.array(data).astype(float)
@@ -330,7 +331,7 @@ def apply_calibration(data,settings):
         return
     if mode == 'calibration':
         #create calibration function from data
-        cal = Calibration('120kVp_CT',R=data[:,1],D=data[:,0],sigma=data[:,2])
+        cal = Calibration(name,R=data[:,1],D=data[:,0],sigma=data[:,2])
         doses = []
     elif mode == 'measurement':
         cal = Calibration(name)
@@ -476,19 +477,20 @@ class Calibration:
     def show_calibration(self,**kwargs):
         
         R=np.linspace(0.01,0.99,90)
-        plt.plot(R,self.fit_function(R,self.a,self.b))
+        curve, = plt.plot(R,self.fit_function(R,self.a,self.b),label = self.name)
+        col = curve.get_color()
         if 'x' in kwargs:
             if 'xerr' in kwargs and 'yerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],yerr=kwargs['yerr'],fmt='+')
+                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],yerr=kwargs['yerr'],fmt=col+'+')
             elif 'xerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],fmt='+')
+                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],fmt=col+'+')
             elif 'yerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],yerr=kwargs['yerr'],fmt='+')
+                plt.errorbar(kwargs['x'],kwargs['y'],yerr=kwargs['yerr'],fmt=col+'+')
             
-        plt.axis((0,0.55,0,1200))
+        plt.axis((0,0.47,0,400))
         plt.ylabel('Dose (mGy)')
         plt.xlabel(r'$\Delta R$')
-        plt.show()
+        #plt.show()
 
 
         
@@ -510,11 +512,47 @@ for fn in filenames:
 results = process_results(results)
 #%%
 
-test_labels, test_data, test_settings, test_cal,test_doses = index_samples(results)
+#test_labels, test_data, test_settings, test_cal,test_doses = index_samples(results)
+
+
+caldir = home + 'dat/cali/'
+
+
+
+all_results = {}
+for sd in ['2003/80/','2003/100/','2003/140/','0203']:
+    filenames = glob.glob(caldir + sd+'/*.tif')
+    
+    results = {}
+    
+    
+    #Can I make this order the list?
+    for fn in filenames:
+        file_process(fn, results,'dynamic')
+    results = process_results(results)
+    all_results[sd] = index_samples(results,caldir+sd)
+    
+    #%%
+for e in all_results:
+    cal_name = all_results[e][2][1]
+    data = all_results[e][1]
+    all_results[e][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
+    plt.legend(loc=2)
+    
+    
+    #all_results[sd][3].show_calibration()
 
 #test_data2=test_data
 #test_cal.show_calibration(x=test_data[0:,1],y=test_data[:,0],xerr = test_data[:,2],yerr = 0.05*test_data[:,0])
-test_cal.show_calibration(x=test_data2[0:,1],y=test_data2[:,0],xerr = test_data2[:,2],yerr = 0.05*test_data2[:,0])
+#test_cal.show_calibration(x=test_data[0:,1],y=test_data[:,0],xerr = test_data[:,2],yerr = 0.05*test_data[:,0])
+
+
+
+
+
+
+
+
 
 
 #cal120 = Calibration('120kVp')
@@ -545,12 +583,12 @@ test_cal.show_calibration(x=test_data2[0:,1],y=test_data2[:,0],xerr = test_data2
         
 
 #%%
-fn = home+'dat/cali/0203/0203_after_011.tif'
-test_image = load_image(fn)
+#fn = home+'dat/cali/0203/0203_after_011.tif'
+#test_image = load_image(fn)
 
-test = choose_ROI(test_image) 
+#test = choose_ROI(test_image) 
 
-show_window(test_image,[ROI_x[0],ROI_x[1],test[0],test[1]],'absolute')
+#show_window(test_image,[ROI_x[0],ROI_x[1],test[0],test[1]],'absolute')
 
 
 #This is where stuff that's not currently being used lives
