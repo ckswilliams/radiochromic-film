@@ -29,6 +29,7 @@ from scipy import misc
 import scipy.ndimage as ndimage
 from scipy.optimize import curve_fit
 from scipy import signal
+import scipy
 
 #Make python into matlab imports
 import numpy as np
@@ -80,10 +81,10 @@ except ImportError:
     
     
 #source directory. Currently points to a test
-source = home + 'dat/cali/2003/140/'
+source = home + 'dat/cali/0203/'
 
 #output directory
-out = home + 'dat/cali/macro_out/140/'
+out = home + 'dat/cali/macro_out/0203/'
 
 #Calibration directiory
 #This shold point the location of previous calibrations, or where future
@@ -179,8 +180,8 @@ def file_process(path, container,window_mode='dynamic'):
     #im = remove_dead_pixels(im)
     
     #apply wiener filter channel by channel. Is this better than just applying it?
-    for channel in range(im.shape[2]-1):
-        im[:,:,channel] = signal.wiener(im[:,:,channel])
+    #for channel in range(im.shape[2]-1):
+    #    im[:,:,channel] = signal.wiener(im[:,:,channel])
     #apply wiener filter to red channel
 
     #select the ROI using coordinates from settings file. Initially, lets choose the RED channel
@@ -231,12 +232,12 @@ def process_results(results):
             results[film_id]['std'] = np.sqrt( np.square(results[film_id]['std_before'])+np.square(results[film_id]['std_after']) )
         except KeyError:
             #insert code for case where no before/after image exists
-            print('Film ID '+ film_id + ' could not be processed into proper data. Trying strip 001')
+            #print('Film ID '+ film_id + ' does not have before scan. Trying strip 001')
             try:
                 results[film_id]['delta'] = results[film_id[:-3]+'001']['mean_before']-results[film_id]['mean_after']
                 results[film_id]['std'] = np.sqrt( np.square(results[film_id[:-3]+'001']['std_before'])+np.square(results[film_id]['std_after']) )
             except:
-                print('Was not able to use strip 001')
+                print('Film ID '+ film_id + ' does not have before scan and could not be processed using strip 001 from batch')
     return results
 
           
@@ -398,6 +399,22 @@ def show_window(image,rect,mode = 'relative'):
     plt.imshow(im_temp)
     
     return im_temp
+    
+    
+#%%
+#Take an image and a calibration function then turn it into a dose map
+def make_dosemap(im,imbackground,cal):
+    im = imbackground/bitdepth - im/bitdepth
+    im[im<0]=0
+    im = cal.get_dose(im)
+    im = im.astype(np.uint16)
+    return im
+    
+
+    
+    
+#misc.toimage(test, cmin=0, cmax=255,mode='I').save("tmp.png")
+#misc.toimage(test,high = np.max(test), low = np.min(test),mode='I').save("tmp.png")
 
 
 
@@ -460,6 +477,7 @@ class Calibration:
     def save_calibration(self):
         pickle.dump([self.a,self.b,self.fit_cov],open(caldir+self.name+'.p',"wb"))
         
+        
 #        np.savetxt(home+'dat/cali/fit/'+name+'.csv', dead_pixel_list, delimiter=',',fmt='%s')
     
     #Load a calibration function from a disk
@@ -468,7 +486,7 @@ class Calibration:
         try:
             [self.a,self.b,self.fit_cov]= pickle.load(open(caldir+self.name+'.p','rb'))
         except:
-            print('not this time')
+            print('Could not load calibration with name '+self.name)
             
     
             
@@ -515,30 +533,38 @@ results = process_results(results)
 #test_labels, test_data, test_settings, test_cal,test_doses = index_samples(results)
 
 
-caldir = home + 'dat/cali/'
 
 
 
-all_results = {}
-for sd in ['2003/80/','2003/100/','2003/140/','0203']:
-    filenames = glob.glob(caldir + sd+'/*.tif')
+#This batch runs a bunch of sub directories then plots all the calibration functions together
+def run_directories(path):
+    all_results = {}
+    #['2003/80/','2003/100/','2003/140/','0203']
+    for sd in ['2003/80/','2003/100/','0203','2003/140/']:
+        filenames = glob.glob(path + sd+'/*.tif')
+        
+        results = {}
+        
+        
+        #Can I make this order the list?
+        for fn in filenames:
+            file_process(fn, results,'dynamic')
+        results = process_results(results)
+        all_results[sd] = index_samples(results,path+sd)
+        
+
+    for e in all_results:
+        cal_name = all_results[e][2][1]
+        data = all_results[e][1]
+        all_results[e][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
+        plt.legend(loc=2)
+    plt.savefig('cals.png', format='png', dpi=600)
+    return all_results
     
-    results = {}
-    
-    
-    #Can I make this order the list?
-    for fn in filenames:
-        file_process(fn, results,'dynamic')
-    results = process_results(results)
-    all_results[sd] = index_samples(results,caldir+sd)
-    
-    #%%
-for e in all_results:
-    cal_name = all_results[e][2][1]
-    data = all_results[e][1]
-    all_results[e][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
-    plt.legend(loc=2)
-    
+testdir = home + 'dat/cali/'
+all_results = run_directories(testdir)
+#%%
+
     
     #all_results[sd][3].show_calibration()
 
