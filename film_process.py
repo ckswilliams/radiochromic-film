@@ -411,18 +411,19 @@ def make_dosemap(im,imbackground,cal):
     im = im.astype(np.uint16)
     return im
     
-def save_dosemap(doseim,ffn):
-    print(ffn)
-    
+def save_dosemap(doseim,ffn): 
     #now take the dosemap and save it to a file
-    
     misc.toimage(doseim, high=np.max(doseim), low=np.min(doseim),mode='I').save(ffn[:-4]+'.png')
 #misc.toimage(test, cmin=0, cmax=255,mode='I').save("tmp.png")
     
-def folder_to_dosemaps(path,cal):
-    fl = glob.glob(path+'*.tif')
-    for fn in fl:
-        file_to_dosemap(path,fn,cal)
+def folder_to_dosemaps(path):
+    index = get_index(path+'index.txt')
+    name=index.pop(0)
+    for l in index:
+        cal = l.pop(0)
+        cal = Calibration(cal)
+        for im in l:
+            file_to_dosemap(path,im+'.tif',cal)
 
 def file_to_dosemap(path,fn,cal):
     im = load_image(path + fn)[:,:,0]
@@ -433,18 +434,18 @@ def file_to_dosemap(path,fn,cal):
         if os.path.exists(path+backfn):
             imback = load_image(path+backfn)[:,:,0]
         else:
-            backfn = backfn[:-6]+'99'+backfn[-4:]
-            imback = load_image(path+backfn)
+            backfn = backfn[:-6]+'01'+backfn[-4:]
+            imback = load_image(path+backfn)[:,:,0]
     except:
-        print('excepty')
+        print('Could not load before image for dosemap'+fn)
     imdose = make_dosemap(im,imback,cal)
-    return im,imback,imdose
     os.makedirs(path+'dosemap/',exist_ok=True)
     save_dosemap(imdose,path+'dosemap/'+fn[:-4]+'_dosemap.tif')
 
-
+#test = file_to_dosemap(home+'dat/skin/frontratio/','2003_after_070.tif',testcal)
+folder_to_dosemaps(home+'dat/skin/frontratio/')
         
-testim,testimback,testimdose = file_to_dosemap(home+'dat/cali/0203/','0203_after_005.tif',cal120)
+#testim,testimback,testimdose = file_to_dosemap(home+'dat/cali/0203/','0203_after_005.tif',cal120)
 #%%
 
 crop_to_film(im):
