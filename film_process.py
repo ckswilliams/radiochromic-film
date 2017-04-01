@@ -477,6 +477,9 @@ class Calibration:
     #Create a new function using key word arguments of the form: R = Reflectionvals, D=Dosevals,sigma=uncertaintyvals
     #If any previous calibration function existed with this name, it will be overwritten.
     def new_calibration(self,**kwargs):
+        self.D = kwargs['D']
+        self.R = kwargs['R']
+        self.sigma = kwargs['sigma']
         if kwargs['D'][0]==0:
             kwargs['D'] = kwargs['D'][1:]
             kwargs['R'] = kwargs['R'][1:]
@@ -509,7 +512,7 @@ class Calibration:
     #Save the calibration function to disk.
     #Todo not robust
     def save_calibration(self):
-        pickle.dump([self.a,self.b,self.fit_cov],open(caldir+self.name+'.p',"wb"))
+        pickle.dump([self.a,self.b,self.fit_cov,self.R,self.D,self.sigma],open(caldir+self.name+'.p',"wb"))
         
         
 #        np.savetxt(home+'dat/cali/fit/'+name+'.csv', dead_pixel_list, delimiter=',',fmt='%s')
@@ -518,7 +521,7 @@ class Calibration:
     #todo not robust
     def load_calibration(self):
         try:
-            [self.a,self.b,self.fit_cov]= pickle.load(open(caldir+self.name+'.p','rb'))
+            [self.a,self.b,self.fit_cov,self.R,self.D,self.sigma]= pickle.load(open(caldir+self.name+'.p','rb'))
         except:
             print('Could not load calibration with name '+self.name)
             
@@ -528,17 +531,10 @@ class Calibration:
     #todo save plot to output folder
     def show_calibration(self,**kwargs):
         
-        R=np.linspace(0.01,0.99,90)
+        R=np.linspace(0.01,0.48,90)
         curve, = plt.plot(R,self.fit_function(R,self.a,self.b),label = self.name)
         col = curve.get_color()
-        if 'x' in kwargs:
-            if 'xerr' in kwargs and 'yerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],yerr=kwargs['yerr'],fmt=col+'+')
-            elif 'xerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],xerr=kwargs['xerr'],fmt=col+'+')
-            elif 'yerr' in kwargs:
-                plt.errorbar(kwargs['x'],kwargs['y'],yerr=kwargs['yerr'],fmt=col+'+')
-            
+        plt.errorbar(self.R,self.D,xerr=self.sigma,yerr=self.D*0.03,fmt=col+'+')
         plt.axis((0,0.47,0,400))
         plt.ylabel('Dose (mGy)')
         plt.xlabel(r'$\Delta R$')
