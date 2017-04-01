@@ -15,6 +15,7 @@
 
 #System imports
 import sys
+import os
 
 #File management imports
 import pickle as pickle
@@ -410,12 +411,45 @@ def make_dosemap(im,imbackground,cal):
     im = im.astype(np.uint16)
     return im
     
-
+def save_dosemap(doseim,ffn):
+    print(ffn)
     
+    #now take the dosemap and save it to a file
     
+    misc.toimage(doseim, high=np.max(doseim), low=np.min(doseim),mode='I').save(ffn[:-4]+'.png')
 #misc.toimage(test, cmin=0, cmax=255,mode='I').save("tmp.png")
-#misc.toimage(test,high = np.max(test), low = np.min(test),mode='I').save("tmp.png")
+    
+def folder_to_dosemaps(path,cal):
+    fl = glob.glob(path+'*.tif')
+    for fn in fl:
+        file_to_dosemap(path,fn,cal)
 
+def file_to_dosemap(path,fn,cal):
+    im = load_image(path + fn)[:,:,0]
+    #Load background image
+    #Try before file
+    try:
+        backfn = fn[:4]+'_before_'+fn[-7:]
+        if os.path.exists(path+backfn):
+            imback = load_image(path+backfn)[:,:,0]
+        else:
+            backfn = backfn[:-6]+'99'+backfn[-4:]
+            imback = load_image(path+backfn)
+    except:
+        print('excepty')
+    imdose = make_dosemap(im,imback,cal)
+    return im,imback,imdose
+    os.makedirs(path+'dosemap/',exist_ok=True)
+    save_dosemap(imdose,path+'dosemap/'+fn[:-4]+'_dosemap.tif')
+
+
+        
+testim,testimback,testimdose = file_to_dosemap(home+'dat/cali/0203/','0203_after_005.tif',cal120)
+#%%
+
+crop_to_film(im):
+    #this needs to have code that crops an image file to the section that contains film.
+    return im
 
 
 #%%
