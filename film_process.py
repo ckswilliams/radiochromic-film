@@ -30,7 +30,9 @@ from scipy import misc
 import scipy.ndimage as ndimage
 from scipy.optimize import curve_fit
 from scipy import signal
+from scipy import odr
 import scipy
+
 
 #Make python into matlab imports
 import numpy as np
@@ -41,7 +43,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import tifffile as tiff
 
-
+#plt.style.use('seaborn-paper')
+#plt.style.use('default')
 
 #%%
 #todo ask user for settings using tkinter?
@@ -425,6 +428,7 @@ def folder_to_dosemaps(path):
         for im in l:
             file_to_dosemap(path,im+'.tif',cal)
 
+
 def file_to_dosemap(path,fn,cal):
     im = load_image(path + fn)[:,:,0]
     #Load background image
@@ -442,13 +446,14 @@ def file_to_dosemap(path,fn,cal):
     os.makedirs(path+'dosemap/',exist_ok=True)
     save_dosemap(imdose,path+'dosemap/'+fn[:-4]+'_dosemap.tif')
 
-#test = file_to_dosemap(home+'dat/skin/frontratio/','2003_after_070.tif',testcal)
-folder_to_dosemaps(home+'dat/skin/frontratio/')
+#testcal = Calibration('120kVp')
+#file_to_dosemap(home+'dat/skin/geo/','2003_geo.tif',testcal)
+#folder_to_dosemaps(home+'dat/skin/nocolls/')
         
 #testim,testimback,testimdose = file_to_dosemap(home+'dat/cali/0203/','0203_after_005.tif',cal120)
 #%%
 
-crop_to_film(im):
+def crop_to_film(im):
     #this needs to have code that crops an image file to the section that contains film.
     return im
 
@@ -485,7 +490,18 @@ class Calibration:
             kwargs['D'] = kwargs['D'][1:]
             kwargs['R'] = kwargs['R'][1:]
             kwargs['sigma'] = kwargs['sigma'][1:]
-        [self.a,self.b],self.fit_cov = curve_fit(self.fit_function,kwargs['R'],kwargs['D'],sigma=kwargs['sigma'])
+        linear = odr.Model(self.fit_function) 
+        mydata = odr.RealData(kwargs['R'], kwargs['D'], sx = kwargs['sigma'])
+        myodr = odr.ODR(mydata, linear, beta0 = [60, 2])
+        myoutput = myodr.run()
+        cov = myoutput.cov_beta
+        sd  = myoutput.sd_beta
+        p   = myoutput.beta 
+        self.a = p[0]
+        self.b = p[1]
+        self.fit_cov = cov
+        self.fit_sd = sd
+#        [self.a,self.b],self.fit_cov = curve_fit(self.fit_function,kwargs['R'],kwargs['D'],sigma=kwargs['sigma'],)
         print(self.a)
         print(self.b)
         if not self.name =='':
@@ -494,13 +510,16 @@ class Calibration:
     #This returns a function based on the variables R and the constants a and b.
     #By changing the form of this function, the form of the fit can be altered
     #Several alternative fit options have been included but commented out
-    def fit_function(self,R,a,b):
+    def fit_function(self,A,R):
+        a=A[0]
+        b=A[1]
+    #Rational function. Looks like the best fit so far
+        return a*R/(1+b*R)
     #Log function. This is quite bad
     #    return a+b*R/np.log(R)
     #Exponential function. ok fit
 #        return a*R*np.exp(b*R)
-    #Rational function. Looks like the best fit so far
-        return a*R/(1+b*R)
+
     #Rational function with a power argument. For science.
 #        return a*R/(1+b*R)
     #something funky
@@ -533,9 +552,9 @@ class Calibration:
     def show_calibration(self,**kwargs):
         
         R=np.linspace(0.01,0.48,90)
-        curve, = plt.plot(R,self.fit_function(R,self.a,self.b),label = self.name)
+        curve, = plt.plot(R,self.fit_function([self.a,self.b],R),label = self.name,zorder=1)
         col = curve.get_color()
-        plt.errorbar(self.R,self.D,xerr=self.sigma,yerr=self.D*0.03,fmt=col+'+')
+        plt.errorbar(self.R,self.D,xerr=self.sigma,yerr=self.D*0.03,color = col, marker ='o',linestyle = 'none',markersize = 2,capsize=2,zorder=2)
         plt.axis((0,0.47,0,400))
         plt.ylabel('Dose (mGy)')
         plt.xlabel(r'$\Delta R$')
@@ -555,14 +574,13 @@ results = {}
 
 
 #Can I make this order the list?
-for fn in filenames:
-    file_process(fn, results,'dynamic')
+#for fn in filenames:
+#    file_process(fn, results,'dynamic')
 #%%
-results = process_results(results)
+#results = process_results(results)
 #%%
 
 #test_labels, test_data, test_settings, test_cal,test_doses = index_samples(results)
-
 
 
 
@@ -571,7 +589,8 @@ results = process_results(results)
 def run_directories(path):
     all_results = {}
     #['2003/80/','2003/100/','2003/140/','0203']
-    for sd in ['2003/80/','2003/100/','0203','2003/140/']:
+    listy = ['2003/80/','2003/100/','0203','2003/140/']
+    for sd in listy:
         filenames = glob.glob(path + sd+'/*.tif')
         
         results = {}
@@ -584,12 +603,13 @@ def run_directories(path):
         all_results[sd] = index_samples(results,path+sd)
         
 
-    for e in all_results:
-        cal_name = all_results[e][2][1]
-        data = all_results[e][1]
-        all_results[e][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
+    for sd in listy:
+        cal_name = all_results[sd][2][1]
+        data = all_results[sd][1]
+        all_results[sd][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
         plt.legend(loc=2)
     plt.savefig('cals.png', format='png', dpi=600)
+    plt.savefig('cals.eps', format='eps', dpi=600)
     return all_results
     
 testdir = home + 'dat/cali/'
@@ -602,7 +622,6 @@ all_results = run_directories(testdir)
 #test_data2=test_data
 #test_cal.show_calibration(x=test_data[0:,1],y=test_data[:,0],xerr = test_data[:,2],yerr = 0.05*test_data[:,0])
 #test_cal.show_calibration(x=test_data[0:,1],y=test_data[:,0],xerr = test_data[:,2],yerr = 0.05*test_data[:,0])
-
 
 
 
