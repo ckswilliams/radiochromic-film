@@ -9,7 +9,7 @@
 # 
 #==============================================================================
 
-
+import pdb
 
 #Let's get some imports up in here
 
@@ -32,6 +32,7 @@ from scipy.optimize import curve_fit
 from scipy import signal
 from scipy import odr
 import scipy
+import cv2
 
 
 #Make python into matlab imports
@@ -41,7 +42,7 @@ import matplotlib.pyplot as plt
 
 #Image management imports (note that scipy does a lot of the legwork here too)
 from PIL import Image
-import tifffile as tiff
+#import tifffile as tiff
 
 #plt.style.use('seaborn-paper')
 #plt.style.use('default')
@@ -83,6 +84,8 @@ except ImportError:
     home = 'C:/Users/CwPc/Google Drive/MsProj/'
 
     
+    
+logging = False
     
 #source directory. Currently points to a test
 source = home + 'dat/cali/0203/'
@@ -128,13 +131,18 @@ ROI_x = [52,106]
 #%%
 #load an image, return a numpy array
 def load_image(fn):
+    if logging:
+        print(fn)
     try:
-        im = tiff.imread(fn)
-        im = np.array(im)
+        im = cv2.imread(fn,-1)
+        im = np.float32(im)
+        
+        for i in np.arange(im.shape[2]):
+            im[:,:,i] = signal.wiener(im[:,:,i])
     except:
         'Could not import ' + fn
         im = np.array([0])
-    return im
+    return im[:,:,::-1]
     
 
 
@@ -184,9 +192,11 @@ def file_process(path, container,window_mode='dynamic'):
     #im = remove_dead_pixels(im)
     
     #apply wiener filter channel by channel. Is this better than just applying it?
-    #for channel in range(im.shape[2]-1):
-    #    im[:,:,channel] = signal.wiener(im[:,:,channel])
+
+
     #apply wiener filter to red channel
+
+    
 
     #select the ROI using coordinates from settings file. Initially, lets choose the RED channel
     #This is working wrong
@@ -414,9 +424,14 @@ def make_dosemap(im,imbackground,cal):
     im = im.astype(np.uint16)
     return im
     
-def save_dosemap(doseim,ffn): 
+def save_dosemap(im,ffn): 
     #now take the dosemap and save it to a file
-    misc.toimage(doseim, high=np.max(doseim), low=np.min(doseim),mode='I').save(ffn[:-4]+'.png')
+    try:
+        if ffn[-4] == '.':
+            ffn = ffn[:-4]
+    except:
+        pass
+    misc.toimage(im, high=np.max(im), low=np.min(im),mode='I').save(ffn+'.png')
 #misc.toimage(test, cmin=0, cmax=255,mode='I').save("tmp.png")
     
 def folder_to_dosemaps(path):
@@ -430,16 +445,22 @@ def folder_to_dosemaps(path):
 
 
 def file_to_dosemap(path,fn,cal):
-    im = load_image(path + fn)[:,:,0]
+    try:
+        im = load_image(path + fn)[:,:,0]
+    except:
+        print('error with file ' +path+fn)
     #Load background image
     #Try before file
     try:
-        backfn = fn[:4]+'_before_'+fn[-7:]
+        fnsplit = fn.split('_')
+        backfn = fnsplit[0]+'_before_'+fnsplit[-1]
         if os.path.exists(path+backfn):
             imback = load_image(path+backfn)[:,:,0]
-        else:
+        elif os.path.exists(backfn[:-6]+'01'+backfn[-4:]):
             backfn = backfn[:-6]+'01'+backfn[-4:]
             imback = load_image(path+backfn)[:,:,0]
+        else:
+            imback = np.array([45830])
     except:
         print('Could not load before image for dosemap'+fn)
     imdose = make_dosemap(im,imback,cal)
@@ -496,9 +517,9 @@ class Calibration:
         myoutput = myodr.run()
         cov = myoutput.cov_beta
         sd  = myoutput.sd_beta
-        p   = myoutput.beta 
-        self.a = p[0]
-        self.b = p[1]
+        self.p   = myoutput.beta 
+        self.a = self.p[0]
+        self.b = self.p[1]
         self.fit_cov = cov
         self.fit_sd = sd
 #        [self.a,self.b],self.fit_cov = curve_fit(self.fit_function,kwargs['R'],kwargs['D'],sigma=kwargs['sigma'],)
@@ -527,7 +548,7 @@ class Calibration:
         
     #Calling this function returns the dose for a given reflectance, according to the calibration function.
     def get_dose(self,R):
-        return self.fit_function(R,self.a,self.b)
+        return self.fit_function([self.a,self.b],R)
     
     #Save the calibration function to disk.
     #Todo not robust
@@ -555,7 +576,7 @@ class Calibration:
         curve, = plt.plot(R,self.fit_function([self.a,self.b],R),label = self.name,zorder=1)
         col = curve.get_color()
         plt.errorbar(self.R,self.D,xerr=self.sigma,yerr=self.D*0.03,color = col, marker ='o',linestyle = 'none',markersize = 2,capsize=2,zorder=2)
-        plt.axis((0,0.47,0,400))
+        plt.axis((0,0.45,0,400))
         plt.ylabel('Dose (mGy)')
         plt.xlabel(r'$\Delta R$')
         #plt.show()
@@ -568,16 +589,11 @@ class Calibration:
 
 #%%
 #Run the program, call the stuff
-filenames = glob.glob(source+'/*.tif')
 
-results = {}
+#folder_to_dosemaps(home+'dat/skin/2404/')
 
 
-#Can I make this order the list?
-#for fn in filenames:
-#    file_process(fn, results,'dynamic')
-#%%
-#results = process_results(results)
+
 #%%
 
 #test_labels, test_data, test_settings, test_cal,test_doses = index_samples(results)
@@ -588,6 +604,7 @@ results = {}
 #This batch runs a bunch of sub directories then plots all the calibration functions together
 def run_directories(path):
     all_results = {}
+    cals = {}
     #['2003/80/','2003/100/','2003/140/','0203']
     listy = ['2003/80/','2003/100/','0203','2003/140/']
     for sd in listy:
@@ -601,19 +618,103 @@ def run_directories(path):
             file_process(fn, results,'dynamic')
         results = process_results(results)
         all_results[sd] = index_samples(results,path+sd)
+        cals[all_results[sd][2][1]] = all_results[sd][3]
         
 
     for sd in listy:
         cal_name = all_results[sd][2][1]
         data = all_results[sd][1]
-        all_results[sd][3].show_calibration(x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0])
+        all_results[sd][3].show_calibration() #x=data[0:,1],y=data[:,0],xerr = data[:,2],yerr = 0.05*data[:,0] what were all these arguments even doing in this call?
         plt.legend(loc=2)
-    plt.savefig('cals.png', format='png', dpi=600)
+#    plt.savefig('cals.png', format='png', dpi=600)
     plt.savefig('cals.eps', format='eps', dpi=600)
-    return all_results
+    return all_results,cals
     
 testdir = home + 'dat/cali/'
-all_results = run_directories(testdir)
+all_results,cals = run_directories(testdir)
+#%%
+
+
+test.show_calibration()
+
+#%%
+
+test = cals['120kVp']
+
+R=np.linspace(0.01,0.3,90)
+
+fig, ax = plt.subplots()
+ax.fill_between(R,test.fit_function(test.p+test_sd,R),test.fit_function(test.p-test_sd,R), facecolor='grey', alpha=0.5)
+
+
+ax.set_xlim([0,0.45])
+ax.set_ylim([0,500])
+
+
+
+fitter = test.fit_function(test.p,R)
+
+uperr = np.abs(fitter - test.fit_function(test.p+test_sd,R))
+lowerr = np.abs(fitter - test.fit_function(test.p-test_sd,R))
+
+
+discrepancy = []
+for test in cals:
+    print(test)
+    discrepancy.append(cals[test].get_dose(cals[test].R)-cals[test].D)
+    
+    
+
+
+
+gdf
+#test_sd = test.fit_sd
+
+
+
+ax.fill_between(t, mu2+sigma2, mu2-sigma2, facecolor='yellow', alpha=0.5)
+
+plt.axis((0,0.45,0,400))
+
+
+gibberish
+#%%
+#List of all previously used directories so I can reprocess if I make changes
+dosemappers = [home + 'dat/skin/0304long/',
+               home + 'dat/skin/0304normal/',
+               home + 'dat/skin/1104/',
+               home + 'dat/skin/1104/n/',
+               home + 'dat/skin/1104/long/',
+               home + 'dat/skin/0304long/',
+               home + 'dat/skin/frontratio/',
+               home + 'dat/skin/0304long/',
+               home + 'dat/skin/nocolls/',
+               ]
+
+for d in dosemappers:
+    folder_to_dosemaps(d)
+    gibberish
+
+
+
+
+
+
+    #%%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #%%
 
     
@@ -697,8 +798,7 @@ def merge_dicts(*dict_args):
         result.update(dictionary)
     return result
     
-    
-    
+
 
 #%%
 #example usage of skimage
