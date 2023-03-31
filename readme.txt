@@ -2,88 +2,126 @@ This is a python script used for processing scanned images of radiochromic film.
 Written by Chris Williams
 
 
-To use from exe, requires:
-Windows
+requires:
+Python version 3.8+
+requires:
+ - scipy
+ - skimage
+ - numpy
+ - matplotlib
+ - PIL
+ - opencv
+ - 
 
-To use from source, requires:
-Python version 3.6+
-basic imports: sys, os, pickle, glob
-scipy,skimage,numpy,matplotlib,PIL,cv2
-
-Tested using winpython 3.6, available  athttps://sourceforge.net/projects/winpython/files/WinPython_3.6/3.6.1.0/WinPython-64bit-3.6.1.0Qt5.exe/download
-Requires cv2
- - Download cv2 package from http://www.lfd.uci.edu/~gohlke/pythonlibs/
- - opencv_python-3.2.0+contrib-cp36-cp36m-win_amd64.whl
- - Open winpython control panel
+Key functions:
+ - Calibration: generate a calibration curve from a series of film measurements
+ - Measurement: measure radiation dose from film strips
+ - Produce dose maps: allow qualitative assessment/manual inspection of dose within the irradiated region
+Each batch of measurements must conform to one of the above functions.
 
 
 Glossary
-A batch of film samples describes all film that needs to be processed in one sitting, or the film necessary to create a single calibration. A batch of film should consist of strips having the same size, located in the same place within the images.
-A set of measurements refers to a single measurement point, which can consist of 1+ pieces of film exposed using the same conditions.
+Batch - A batch of film samples is a grouping of film.
+      - Calibration functions limit the contents of each batch (one calibration curve per batch)
+      - Otherwise, batches are just a convenient method for collecting measurements in a sub-group
+      - Ideally, each batch consists of images with the same resolution. However, this is not strictly necessary.
+Set - A set of measurements refers to a single measurement point
+    - This consists of 1+ pieces of film exposed using the same conditions
+    - Measurement sets greater than 1 film strip are used to assess precision/uncertainty
 
 
-Usage of this script requires the following:
- - All film scanned at the same position within the image
+How to perform film measurements and scan film strips:
+ - Images must be scanned into .tif format with a digital scanner
+ - Images should preferably be 16 bit depth. If another image depth is used, the yml settings file must be updated
+ - All film should be positioned at the exact same position within the image
   > use a template for film placement in scanner
- - For each batch of film samples with the same size, at least one image before exposure
-  > Additional dosimetric accuracy can be achieved by scanning each piece of film before expsoure
- - Image of each piece of film scanned after exposure
- - Each batch of images should be in a unique directory
- - The file naming convention must follow the guide below
- - A index.txt or mapindex.txt must exist in the same directory, describing the images
-  > These can be created by referring to the sections below or templates provided in the sample directory.
+ - Each image should contain one piece of radiochromic film
+ - Ensure any image processing effects are disabled
+ - Scan each piece of film before and after exposure for the best achievable accuracy
+  > Ensure each scan field of view is the same size for the before/after images. Difference in image resolution will break the script.
+  > At the very least, scan a single sample piece of film before and after exposure
+ - Repeat each measurement x3, so 6 scanned images per measurement
+  > Skipping this step significantly reduces the ability to estimate measurement uncertainty
+ - Expose each film strip, preferably to a uniform radiation exposure
+  > Horizontally uniform radiation exposures are fine in 'dynamic' mode.
 
-Image filenames:
-
-The following image naming convention is mandatory:
-[batch]_[after/before]_[number id]
-
+  
+Setting up the folder structure:
+ - An example folder structure is included in the github repository.
+ - The example folder structure can just be used as-is
+ - An example yml setting file is included named 'film_process.yml'
+ - The default action of the script is to load 'film_process.yml' from the working directory
+ - The example yml setting file default behavior is to process the contents of the example folder structure
+ - Each measurement batch must be defined in the yml settings file used to call the script 
+ - Each measurement batch must have before/after images of each measurement, and an index.txt file which describes the measurement
+ 
+ 
+File naming convention
+THE SCRIPT WILL NOT PROCESS FILES WHICH DEVIATE FROM THIS NAMING CONVENTION
+image names
+[batch]_[after/before]_[number id].tif
+'default_background.tif' can optionally be included in each directory.
+If 'before' images are unavailable, the default background image will be used as the before image instead
 eg:
-testbatch_after_001 would be an image of the first film piece after exposure.
-testbatch_before_001 would be the first film piece before exposure.
+testbatch_after_001.tif would be an image of the first film piece after exposure.
+testbatch_before_001.tif would be the first film piece before exposure.
+in the index, this before/after pair would have the film_id 'testbatch_001'
 
 
+How to use the script:
+ - Each folder must contain a measurement batch.
+  > Calibration type batches must contain data for a single calibration curve
+  > e.g. to have a calibration curve at 4 different kVp settings, 4 different measurement batches are required.
+ - There is no strict limit or constraint on how many items/measurements can be included in a measurement or dosemap measurement batch
+ - File names must strictly match the format provided.
+ - An index.txt file must exist in the same directory, describing the images. See below.
+ - a yml file describing the settings for the analysis must be created.
+ - the script is then called with the yml file as the argument
 
 
-Calibration
-
-The program can be used to calibrate film by exposing a batch to a series of known doses.
-The calibration index.txt file must detail which images correspond to each measurement.
-The dose each group of 
-For calbiration, the dose levels should follow an approximately geometric pattern covering the necessary dynamic range for any measurements required.
-Expose at least 1, preferably 3 pieces of film at each level.
-The calibration function created will consist of 2 parameters and their corresponding uncertainty.
-The form of the calibration is Dose = a * Delta R / (1 + b * Delta R)
-Where Delta R is the change in reflectance (pixel value before - pixel value after)
-a & b are the fitted parameters.
-For calibration and uncertainty calculation discussions, please see thesis chapter 4
-todo: link
-After running the script to calibrate, the function will be saved as cal/name according to the name provided in the index.txt file.
-Saved calibrations can be used to perform measurements and create dose maps.
+In addition, each batch requires an 'index.txt' file
+Optionally, each batch can have a 'default_background.tif' file, typically required for cases when the 'before' images were lost or forgotten.
 
 
-Measuring an unknown dose
+Calibration function
+ - The program can be used to calibrate film by exposing a batch to a series of known doses.
+ - The calibration index.txt file must detail which images correspond to each measurement.
+ - Each measurement batch can only contain a single calibration curve
+ - Film strips should be exposed across the necessary dynamic range for any measurements which will be needed
+ - Expose at least 1, preferably 3 pieces of film at each dose level.
+ - The calibration function created will consist of 2 parameters and their corresponding uncertainty.
+ - The form of the calibration is Dose = a * Delta R / (1 + b * Delta R)
+ - Where Delta R is the change in reflectance (pixel value before - pixel value after)/2^bit_depth
+ - a & b are the fitted parameters.
+ - For calibration and uncertainty calculation discussions, please see thesis chapter 4
+ - After running the script to calibrate, the calibration will be saved in [output_folder]/cal/[batch_name].p
+ - Plots of the calibrations will be saved in [output_folder]/cal/plot/[batch_name].png (if the associated setting is enabled)
+  > Saved calibrations can be used to perform measurements and create dose maps
 
-The program can be used to measure an unknown dose using previously measured calibration values.
-The index.txt file must detail a name and calibration function for each measurement set
-The results of the measurement will be dumped to an excel spreadsheet in the output directory.
+
+Measurement function
+
+ - The program can be used to measure an unknown dose using previously established calibration.
+ - The index.txt file must detail a name and calibration function for each measurement set
+ - The results of the measurement will be dumped to a csv file in [output_folder]/data/[batch_name].csv
   
-  
 
-Creating a dosemap
+Dosemap function
 
-The script can be used to convert exposed images to a dose image, using previously calbirated values.
-Requires a mapindex.txt file which details which calbiration function should be used for each image.
-The resulting images will be placed in a subdirectory of the images used to create them.
-The default unit of the dosemap images is microGray - this will lead to clipping above 65536 uGy.
-When measuring above 65536 uGy, the multiplicitive factor should be set in dosemap.txt.
-Manually adding 100 to this will decrease the values output by a factor of 10.
+ - The script can be used to convert exposed images to a dose image, using a previously established calibration function.
+ - The resulting images will be placed in [output_folder]/dose_maps/[batch_name]/xx_xx.tif
+ - The images can be loaded in Image J or with python imageio
+ - The default unit of the dosemap images is mGy
 
-  
+
 index.txt
-The appropriate method for creating index files is to use the template index.txt provided.
-The following provides a detailed description of how these files work, should it prove necessary.
-Note that the 'before' or 'after' part of the image filenames is omitted in index.txt.
+ - The index.txt file details the contents of a given directory.
+ - Each measurement batch must contain index.txt
+ - No output will be created for files that aren't mentioned in index.txt
+ - Accurately filling out the index.txt file is necessary for measurement
+ - Example index.txt files are available for all 3 measurement types
+ - The following provides a detailed description of how these files work, should it prove necessary.
+ - Note that the 'before' or 'after' part of the image filenames is omitted in index.txt.
 
 #==============================================================================
 # Open the index file and make a list of lists out of the contents
@@ -96,7 +134,7 @@ Note that the 'before' or 'after' part of the image filenames is omitted in inde
 #
 #Calibration:
 #Each set requires one line
-#line2+: 	[dose]mGy,film_id,film_id
+#line2+: 	[dose]mGy,film_id_1,film_id_2,film_id_3,...,
 #Film id is [batch]_[number id]
 #eg: 		103.2mGy,0315_001,0315_002,0315_003
 #Where 0315 is the batch name, and the set includes film pieces 001, 002 and 003.
@@ -123,15 +161,15 @@ Note that the 'before' or 'after' part of the image filenames is omitted in inde
 #==============================================================================
 
 
-mapindex.txt
+index.txt folders which are only for dose maps:
 
 example file:
-Note: for mapindex.txt, the 'after' part of the filename must be included
+Note: for index.txt, the 'after' part of the filename must be included
 #==============================================================================
 #dosemap
-#120kVp,0304_after_022,0304_after_023
-#80kVp,0304_after_024,0304_after_025
-#100kVp,0304_after_026,0304_after_027
-#140kVp,0304_after_028,0304_after_029
+#120kVp,0304_022,0304_023
+#80kVp,0304_024,0304_025
+#100kVp,0304_026,0304_027
+#140kVp,0304_028,0304_029
 #==============================================================================
 

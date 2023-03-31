@@ -1,0 +1,64 @@
+# Folder Settings
+#
+# The calibration folder and output folder can be either absolute or relative.
+# If it doesn't exist and the script is in calibration mode, the script will attempt to create it.
+calibration_folder: 'test_data/test_film_out/cal'
+
+# Each input folder must have an index.txt or index.csv file inside which describes the measurements
+# The input.txt file will determine whether the measurement is a calibration or a test
+input_folders:
+ - test_data/test_film_in/cal/80
+ - test_data/test_film_in/cal/100
+ - test_data/test_film_in/cal/120
+ - test_data/test_film_in/cal/140
+ - test_data/test_film_in/characterisation/bowtie
+ - test_data/test_film_in/characterisation/dd
+ - test_data/test_film_in/skin/long_dosemaps
+ - test_data/test_film_in/skin/measurement_example_1
+ - test_data/test_film_in/skin/measurement_example_2
+ - test_data/test_film_in/skin/measurement_example_3
+ 
+ # The output folder will contain a summary of measurements
+output_folder: 'test_data/test_film_out'
+
+# Image settings
+bit_depth: 16
+
+plot_calibration_results: yes
+
+# Measurement Mode Only
+# If yes, images where the pixel value is equal to the radiation point dose in mGy are also created
+# if no, not created.
+# if 'only', only dose maps are performed
+make_dose_images: measure_and_maps
+
+single_csv_output: yes
+
+# If the 'before' image for a dose image is not available, use the following pixel value
+# by default. Ideally this should never be required - measure before and after!
+backup_background_pixel_value: 45830
+
+# Image processing settings
+# If the film strips are uniformly irradiated and uniformly located within the digital images
+# we can use a simply ROI specification for measuring pixel values. Ignored in dynamic mode.
+manual_roi: [40, 40, 60, 40]
+
+
+# Dynamic mode automatically selects the darkest region on each film strip for analysis
+# Dynamic mode should only be used with dark strips arranged horizontally in the images
+# If dynamic mode is used, the measurement_location parameter is ignored
+dynamic: true
+# In dynamic mode, search in the following location for the peak dose area
+# x, dx, y, dy
+dynamic_roi: [64,33,42,79]
+# In dynamic mode, we can restrict the x pixel locations. Ignore pixels outside this 
+# area when looking for the peak dose region
+dynamic_x_range: [52, 106]
+dynamic_show_roi: no
+
+# Array mode allows the user to scan a number of film strips in a single image. At the time of writin this comment, it doesn't work.
+array_mode: false
+array_mode_columns: 10
+
+# Localisation Settings
+#
