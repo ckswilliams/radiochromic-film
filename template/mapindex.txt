@@ -1,5 +1,0 @@
-dosemap
-120kVp,0304_after_022,0304_after_023
-80kVp,0304_after_024,0304_after_025
-100kVp,0304_after_026,0304_after_027
-140kVp,0304_after_028,0304_after_029
