@@ -1,0 +1,2 @@
+dosemap, bowties
+120kVp,bowtie_001

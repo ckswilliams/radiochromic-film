@@ -1,0 +1,1 @@
+This is an example where a single image is used to create dosemaps with 4 different calibration curves, since for some reason I scanned them all together.
